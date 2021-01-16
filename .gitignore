@@ -1,0 +1,8 @@
+Obj/
+Bin/
+.vs/
+*.pdb
+*.vshost.exe*
+*.user
+Sample/rtti/rtti
+Sample/rtti/map.txt
