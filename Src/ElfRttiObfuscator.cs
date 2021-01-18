@@ -122,7 +122,7 @@ namespace RttiObfuscator
                 }
 
                 var Cls = (ElfClass)(br.ReadByte());
-                if (Cls != ElfClass._64)
+                if ((Cls != ElfClass._64) && (Cls != ElfClass._32))
                 {
                     throw new InvalidOperationException("InvalidClass");
                 }

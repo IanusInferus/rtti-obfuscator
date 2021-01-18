@@ -81,7 +81,7 @@ namespace RttiObfuscator
         public static void DisplayInfo()
         {
             Console.WriteLine(@"RttiObfuscator");
-            Console.WriteLine(@"PE and ELF RTTI obfuscator");
+            Console.WriteLine(@"ELF RTTI obfuscator");
             Console.WriteLine(@"");
             Console.WriteLine(@"Usage:");
             Console.WriteLine(@"RttiObfuscator elf list <InputFilePath>");
