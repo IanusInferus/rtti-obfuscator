@@ -21,7 +21,16 @@ Install [mono](https://www.mono-project.com/download/stable/) and prefix `mono` 
 
 ## Notice
 
-clang will inline string literal into 16-byte bulk copies and intermediate value assignments with -O2, which will embed trailing chars into opcode (when char count is not a multiple of 16). This can be worked around by marking `__attribute__((noinline))` on `std::type_info::name()`.
+clang will inline string literal into 16-byte bulk copies and intermediate value assignments with -O2, which will embed trailing chars into opcode (when char count is not a multiple of 16). gcc also has similar behavior.
+
+This can be worked around by marking `__attribute__((noinline))` on `std::type_info::name()`, or by wrapping all calls to `typeid(T).name()` with `non_inline_str`, where T is a compile-time-deterministic type and `non_inline_str` is as follows.
+
+    #if defined(_MSC_VER)
+    __declspec(noinline)
+    #else
+    __attribute__((noinline))
+    #endif
+    static const char * non_inline_str(const char * str) { return str; }
 
 ## License
 

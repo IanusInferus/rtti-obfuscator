@@ -16,19 +16,37 @@ namespace com
             virtual ~TestClassA() {};
         };
 
+        class TestClassB : public TestClassA
+        {
+        public:
+            virtual ~TestClassB() {};
+        };
     }
+}
+
+#if defined(_MSC_VER)
+__declspec(noinline)
+#else
+__attribute__((noinline))
+#endif
+static const char * non_inline_str(const char * str) { return str; }
+
+void test(std::shared_ptr<com::test_namespace::TestClassA> a)
+{
+    auto b = std::make_shared<com::test_namespace::TestClassB>();
+    std::printf("%s\n", typeid(b).name()); //display CEAD7865E_________________________________________
+    std::printf("%s\n", std::string(typeid(b).name()).c_str()); //display CEAD7865E_______________________________________EE with -O2 and not patched
+    std::printf("%s\n", std::string(non_inline_str(typeid(b).name())).c_str()); //display CEAD7865E_________________________________________
+
+    auto pa = a.get();
+    std::printf("%s\n", typeid(*pa).name()); //display CE9FC71BE_________________________
+    std::printf("%s\n", std::string(typeid(*pa).name()).c_str()); //display CE9FC71BE_________________________
+    std::printf("%s\n", std::string(non_inline_str(typeid(*pa).name())).c_str()); //display CE9FC71BE_________________________
 }
 
 int main(int argc, char** argv)
 {
-    auto o = std::make_shared<com::test_namespace::TestClassA>();
-    auto p = o.get();
-
-    auto cName = typeid(*p).name();
-    std::printf("%s\n", cName); //display C05A4ABAA_________________________
-
-    auto cppName = std::string(cName);
-    std::printf("%s\n", cppName.c_str()); //display C05A4ABAA_______________________AE with -O2 and not patched
-
+    auto b = std::make_shared<com::test_namespace::TestClassB>();
+    test(b);
     return 0;
 }
