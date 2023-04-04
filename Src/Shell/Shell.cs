@@ -43,6 +43,7 @@ namespace RttiObfuscator
         {
             x86,
             x86_64,
+            arm64,
             Unknown
         }
 
@@ -92,11 +93,45 @@ namespace RttiObfuscator
         {
             get
             {
+                var os = OperatingSystem;
                 lock (OperatingSystemArchitectureLockee)
                 {
                     if (OperatingSystemArchitectureValue == null)
                     {
-                        if (Environment.Is64BitOperatingSystem)
+                        if (os == OperatingSystemType.MacOS)
+                        {
+                            var p = ExecuteAndGetOutput("uname", "-m");
+                            if (p.Key == 0)
+                            {
+                                var v = p.Value.Trim('\n');
+                                if (v == "x86_64")
+                                {
+                                    var p2 = ExecuteAndGetOutput("sysctl", "-in", "sysctl.proc_translated");
+                                    var v2 = p2.Value.Trim('\n');
+                                    if ((p2.Key == 0) && int.TryParse(v2, out var v2i) && (v2i == 1))
+                                    {
+                                        OperatingSystemArchitectureValue = OperatingSystemArchitectureType.arm64;
+                                    }
+                                    else
+                                    {
+                                        OperatingSystemArchitectureValue = OperatingSystemArchitectureType.x86_64;
+                                    }
+                                }
+                                else if (v == "arm64")
+                                {
+                                    OperatingSystemArchitectureValue = OperatingSystemArchitectureType.arm64;
+                                }
+                                else
+                                {
+                                    throw new NotSupportedException();
+                                }
+                            }
+                            else
+                            {
+                                throw new NotSupportedException();
+                            }
+                        }
+                        else if (Environment.Is64BitOperatingSystem)
                         {
                             OperatingSystemArchitectureValue = OperatingSystemArchitectureType.x86_64;
                         }
@@ -107,6 +142,56 @@ namespace RttiObfuscator
                         //other architecture not supported now
                     }
                     return OperatingSystemArchitectureValue.Value;
+                }
+            }
+        }
+
+        private static Object ProcessArchitectureLockee = new Object();
+        private static OperatingSystemArchitectureType? ProcessArchitectureValue = null;
+        public static OperatingSystemArchitectureType ProcessArchitecture
+        {
+            get
+            {
+                var os = OperatingSystem;
+                lock (ProcessArchitectureLockee)
+                {
+                    if (ProcessArchitectureValue == null)
+                    {
+                        if (os == OperatingSystemType.MacOS)
+                        {
+                            var p = ExecuteAndGetOutput("uname", "-m");
+                            if (p.Key == 0)
+                            {
+                                var v = p.Value.Trim('\n');
+                                if (v == "x86_64")
+                                {
+                                    ProcessArchitectureValue = OperatingSystemArchitectureType.x86_64;
+                                }
+                                else if (v == "arm64")
+                                {
+                                    ProcessArchitectureValue = OperatingSystemArchitectureType.arm64;
+                                }
+                                else
+                                {
+                                    throw new NotSupportedException();
+                                }
+                            }
+                            else
+                            {
+                                throw new NotSupportedException();
+                            }
+                        }
+                        else if (Environment.Is64BitProcess)
+                        {
+                            ProcessArchitectureValue = OperatingSystemArchitectureType.x86_64;
+                        }
+                        else
+                        {
+                            ProcessArchitectureValue = OperatingSystemArchitectureType.x86;
+                        }
+                        //other architecture not supported now
+                    }
+                    return ProcessArchitectureValue.Value;
                 }
             }
         }
@@ -149,8 +234,8 @@ namespace RttiObfuscator
                 Remaining.RemoveFirst();
                 while (Remaining.Count > 0)
                 {
-                    var l = Directory.GetFileSystemEntries(CurrentPath, Remaining.First.Value);
-                    if (l.Length == 0)
+                    var l = FileSystemUtils.GetFileSystemEntries(CurrentPath, Remaining.First.Value, SearchOption.TopDirectoryOnly).ToList();
+                    if (l.Count == 0)
                     {
                         break;
                     }
@@ -262,7 +347,30 @@ namespace RttiObfuscator
         }
         public static ProcessStartInfo CreateExecuteStartInfo(String ProgramPath, params String[] Arguments)
         {
+#if NET5_0_OR_GREATER
+            if (OperatingSystem == OperatingSystemType.Windows)
+            {
+                if (ProgramPath.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) || ProgramPath.EndsWith(".bat", StringComparison.OrdinalIgnoreCase))
+                {
+                    return CreateExecuteLineStartInfoInner("cmd", (new String[] { "/C", ProgramPath }).Concat(Arguments).ToArray());
+                }
+            }
+            else
+            {
+                if (ProgramPath.EndsWith(".sh", StringComparison.Ordinal))
+                {
+                    var BashPath = TryLocate("bash");
+                    if (BashPath == null)
+                    {
+                        throw new InvalidOperationException("BashNotFound");
+                    }
+                    return CreateExecuteLineStartInfoInner(BashPath, new String[] { "-c", EscapeArgument(ProgramPath) + (Arguments.Length == 0 ? "" : " " + String.Join(" ", Arguments.Select(a => EscapeArgument(a)))) });
+                }
+            }
+            return CreateExecuteLineStartInfoInner(ProgramPath, Arguments);
+#else
             return CreateExecuteLineStartInfo(ProgramPath, String.Join(" ", Arguments.Select(arg => EscapeArgument(arg))));
+#endif
         }
         public static ProcessStartInfo CreateExecuteLineStartInfo(String ProgramPath, String Arguments)
         {
@@ -282,11 +390,26 @@ namespace RttiObfuscator
                     {
                         throw new InvalidOperationException("BashNotFound");
                     }
-                    return CreateExecuteLineStartInfoInner(BashPath, "-c " + EscapeArgument(ProgramPath) + (Arguments == "" ? "" : " " + Arguments));
+                    return CreateExecuteLineStartInfoInner(BashPath, "-c " + EscapeArgument(EscapeArgument(ProgramPath) + (Arguments == "" ? "" : " " + Arguments)));
                 }
             }
             return CreateExecuteLineStartInfoInner(ProgramPath, Arguments);
         }
+#if NET5_0_OR_GREATER
+        private static ProcessStartInfo CreateExecuteLineStartInfoInner(String ProgramPath, String[] Arguments)
+        {
+            var psi = new ProcessStartInfo()
+            {
+                FileName = ProgramPath,
+                UseShellExecute = false
+            };
+            foreach (var arg in Arguments)
+            {
+                psi.ArgumentList.Add(arg);
+            }
+            return psi;
+        }
+#endif
         private static ProcessStartInfo CreateExecuteLineStartInfoInner(String ProgramPath, String Arguments)
         {
             var psi = new ProcessStartInfo()
@@ -430,7 +553,7 @@ namespace RttiObfuscator
                 if (Options.Validator == null) { break; }
                 var ValidationResult = Options.Validator(v);
                 if (ValidationResult.Key) { break; }
-                var ValidationMessage = ValidationResult.Value == "" ? "Variable '" + Name + "' invalid." : "Variable '" + Name + "' invalid. " + ValidationResult.Value;
+                var ValidationMessage = "Variable '" + Name + "=" + (Options.IsPassword ? "[***]" : v) + "' invalid." + (ValidationResult.Value == "" ? "" : " " + ValidationResult.Value);
                 if (Options.Quiet) { throw new InvalidOperationException(ValidationMessage); }
                 if (Options.OnInteraction != null) { Options.OnInteraction(); }
                 var PromptText = ValidationMessage + " Input" + (d == "" ? "" : " " + d) + ": ";
@@ -744,7 +867,7 @@ namespace RttiObfuscator
                 {
                     try
                     {
-                        FileSelections = Directory.EnumerateFiles(ConfirmedParts, "*", SearchOption.TopDirectoryOnly).Select(f => f.AsPath().FileName).ToList();
+                        FileSelections = FileSystemUtils.GetFiles(ConfirmedParts, "*", SearchOption.TopDirectoryOnly).Select(f => f.FileName).ToList();
                     }
                     catch (UnauthorizedAccessException)
                     {
@@ -755,7 +878,7 @@ namespace RttiObfuscator
                 {
                     try
                     {
-                        DirectorySelections = Directory.EnumerateDirectories(ConfirmedParts, "*", SearchOption.TopDirectoryOnly).Select(d => d.AsPath().FileName).ToList();
+                        DirectorySelections = FileSystemUtils.GetDirectories(ConfirmedParts, "*", SearchOption.TopDirectoryOnly).Select(d => d.FileName).ToList();
                     }
                     catch (UnauthorizedAccessException)
                     {

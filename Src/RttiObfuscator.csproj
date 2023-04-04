@@ -8,7 +8,7 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>RttiObfuscator</RootNamespace>
     <AssemblyName>RttiObfuscator</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
@@ -39,6 +39,7 @@
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Base\FileSystemUtils.cs" />
     <Compile Include="Base\PathString.cs" />
     <Compile Include="ElfRttiObfuscator.cs" />
     <Compile Include="Program.cs" />
